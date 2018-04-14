@@ -28,11 +28,11 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
     measurements = []
 
     # for testing purpose, only process the first 50 images.
-    context = context[:50]
+    # context = context[:50]
 
     for line in context:
         (center, left, right, steering_angle, throttle, brake, speed) = line.split(",")
-        print("Processing image " + center)
+        # print("Processing image " + center)
         # the center contains the absolute path, which may not exist on remote host so we will need to extract only the filename
         # and supply a directory path which contains the file. 
         center_image = process_image(data_path, center.split("/")[-1])
@@ -82,7 +82,7 @@ def construct_nVidia_network():
     return model
 
 
-X_train, y_train = preprocess_images_and_measurements("/Users/damao/Desktop/car data/")
+X_train, y_train = preprocess_images_and_measurements("./data/")
 model = construct_nVidia_network()
 model.compile(loss = 'mse', optimizer = 'adam')
 model.fit(X_train, y_train, validation_split = 0.2, shuffle = True, nb_epoch = 7)
@@ -91,3 +91,5 @@ model.save("model.h5")
 # print("Train the network....")
 # train_and_save_network(network, X_train, y_train)
 # print("Training completed.")
+
+import gc; gc.collect() 
