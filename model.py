@@ -3,6 +3,7 @@
 # try out other networks and play with the real transfer learning aspect of the project.
 
 import numpy as np
+import cv2
 
 # Before going right into building the network, we need to preprocess the data in our pipeline first.
 def preprocess_images_and_measurements(data_path, non_center_image_angle_correction = 0.2):
@@ -16,7 +17,8 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
 
 	This function returns a tuple of (images, measurements of the steering angle). 
 
-	In the first trial, I'll only use the center image since we have data collected from the recovery lap.
+	In the first trial, I'll only use the center image since we have data collected from the recovery lap. 
+	Also no flipping of the image for now since I have collected images from reversed driving.
 	"""
 	context = []
 	with open(data_path + "/driving_log.csv") as f:
@@ -25,9 +27,13 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
 	images = []
 	measurements = []
 
+	# for testing purpose, only process the first 50 images.
+	# context = context[:50]
+
 	for line in context:
 		(center, left, right, steering_angle, m2, m3, speed) = line.split(",")
-		center_image = process_image(data_path, center)
+		print("Processing image " + center)
+		center_image = process_image(center)
 		images.append(center_image)
 		measurements.append(steering_angle)
 		
@@ -42,3 +48,13 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
 	# converting to numpy array to ease the process down the pipeline.
 	return (np.array(images), np.array(measurements))
 
+def process_image(image_path):
+	# The following code read in the image as BGR! Convert it to RGB since the drive.py takes in RGB.
+	image = cv2.imread(image_path)
+	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+	# add in flipping if necessary
+
+	return image
+
+preprocess_images_and_measurements("/Users/damao/Desktop/car data/")
