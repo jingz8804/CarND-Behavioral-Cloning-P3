@@ -28,7 +28,7 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
     measurements = []
 
     # for testing purpose, only process the first 50 images.
-    # context = context[:50]
+    context = context[:50]
 
     for line in context:
         (center, left, right, steering_angle, throttle, brake, speed) = line.split(",")
@@ -37,17 +37,17 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
         # and supply a directory path which contains the file. 
         center_image = process_image(data_path, center.split("/")[-1])
         images.append(center_image)
-        measurements.append(steering_angle)
+        measurements.append(float(steering_angle))
         
         # left_image = process_image(data_path, left.split("/")[-1])
         # images.append(left_image)
-        # measurements.append(steering_angle + non_center_image_angle_correction)
+        # measurements.append(float(steering_angle) + non_center_image_angle_correction)
 
         # right_image = process_image(data_path, right.split("/")[-1])
         # images.append(right_image)
-        # measurements.append(steering_angle - non_center_image_angle_correction)
+        # measurements.append(float(steering_angle) - non_center_image_angle_correction)
 
-    # converting to numpy array to ease the process down the pipeline.
+    # converting to numpy array since that's the format Keras requires.
     return (np.array(images), np.array(measurements))
 
 def process_image(data_path, image_path):
@@ -76,10 +76,18 @@ def construct_preprocessing_layers():
 
 
 def construct_nVidia_network():
-    pass
+    model = construct_preprocessing_layers()
+    model.add(Flatten(input_shape = (160, 320, 3)))
+    model.add(Dense(1))
+    return model
+
 
 X_train, y_train = preprocess_images_and_measurements("/Users/damao/Desktop/car data/")
-# network = construct_nVidia_network()
+model = construct_nVidia_network()
+model.compile(loss = 'mse', optimizer = 'adam')
+model.fit(X_train, y_train, validation_split = 0.2, shuffle = True, nb_epoch = 7)
+
+model.save("model.h5")
 # print("Train the network....")
 # train_and_save_network(network, X_train, y_train)
 # print("Training completed.")
