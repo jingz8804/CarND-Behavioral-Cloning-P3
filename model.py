@@ -31,30 +31,55 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
     # context = context[:50]
 
     for line in context:
-        (center, left, right, steering_angle, m2, m3, speed) = line.split(",")
+        (center, left, right, steering_angle, throttle, brake, speed) = line.split(",")
         print("Processing image " + center)
-        center_image = process_image(center)
+        # the center contains the absolute path, which may not exist on remote host so we will need to extract only the filename
+        # and supply a directory path which contains the file. 
+        center_image = process_image(data_path, center.split("/")[-1])
         images.append(center_image)
         measurements.append(steering_angle)
         
-        # left_image = process_image(data_path, left)
+        # left_image = process_image(data_path, left.split("/")[-1])
         # images.append(left_image)
         # measurements.append(steering_angle + non_center_image_angle_correction)
 
-        # right_image = process_image(data_path, right)
+        # right_image = process_image(data_path, right.split("/")[-1])
         # images.append(right_image)
         # measurements.append(steering_angle - non_center_image_angle_correction)
 
     # converting to numpy array to ease the process down the pipeline.
     return (np.array(images), np.array(measurements))
 
-def process_image(image_path):
+def process_image(data_path, image_path):
     # The following code read in the image as BGR! Convert it to RGB since the drive.py takes in RGB.
-    image = cv2.imread(image_path)
+    image = cv2.imread(data_path + "/IMG/" + image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # add in flipping if necessary
-
     return image
 
-preprocess_images_and_measurements("/Users/damao/Desktop/car data/")
+from keras.models import Sequential
+from keras.layers import Flatten, Dense, Lambda, Convolution2D, Cropping2D
+from keras.layers.pooling import MaxPooling2D
+
+def construct_preprocessing_layers():
+    model = Sequential()
+    # Adding a normalization and mean-centering layer. 
+    # This will first normalize the input to between 0 and 1, then it will center the mean to 0.
+    model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160, 320, 3)))
+    # Adding a cropping layer that remove the sky, trees and the front of the car.
+    # As specified in the documentation (https://keras.io/layers/convolutional/#cropping2d), 
+    # if tuple of 2 tuples of 2 ints: interpreted as ((top_crop, bottom_crop), (left_crop, right_crop))
+    model.add(Cropping2D(cropping=((70, 25), (0,0))))
+
+    return model
+
+
+def construct_nVidia_network():
+    pass
+
+X_train, y_train = preprocess_images_and_measurements("/Users/damao/Desktop/car data/")
+# network = construct_nVidia_network()
+# print("Train the network....")
+# train_and_save_network(network, X_train, y_train)
+# print("Training completed.")
