@@ -4,66 +4,18 @@
 
 import numpy as np
 import cv2
+import sklearn
 
-# Before going right into building the network, we need to preprocess the data in our pipeline first.
-def preprocess_images_and_measurements(data_path, non_center_image_angle_correction = 0.2):
-    """
-    Load in the image and measurement data we collected from the driving logs in the
-    directory specified in the 'data_path'.
+from sklearn.model_selection import train_test_split
+from random import shuffle
 
-    The function will process the driving log one by one, also adding corrections to the non-center images.
-
-    Here we are only interested in the images and their steering angle measurements. 
-
-    This function returns a tuple of (images, measurements of the steering angle). 
-
-    The left camera should add some positive correction while the right camera should subtract the correction. 
-    Think it this way that if the center camera sees what the left camera sees, it should turn right a bit to get back to the center (positive correction).
-    On the other hand, if the center camera sees what the right camera sees, it should turn left a bit to get back to the center (negative correction).
-
-    Also Flipping gives us more data with driving in the reversed direction.
-    """
+def load_driving_logs(data_path):
     context = []
     with open(data_path + "/driving_log.csv") as f:
         context = [line.strip() for line in f.readlines()]
-
-    images = []
-    measurements = []
-
-    # for testing purpose, only process the first 50 images.
-    # context = context[:50]
-
-    for line in context:
-        (center, left, right, steering_angle, throttle, brake, speed) = line.split(",")
-        # print("Processing image " + center)
-        # the center contains the absolute path, which may not exist on remote host so we will need to extract only the filename
-        # and supply a directory path which contains the file. 
-        center_image = process_image(data_path, center.split("/")[-1])
-        images.append(center_image)
-        measurements.append(float(steering_angle))
-        
-        left_image = process_image(data_path, left.split("/")[-1])
-        images.append(left_image)
-        measurements.append(float(steering_angle) + non_center_image_angle_correction)
-
-        right_image = process_image(data_path, right.split("/")[-1])
-        images.append(right_image)
-        measurements.append(float(steering_angle) - non_center_image_angle_correction)
-
-    # Flipping the images
-    reversed_images = []
-    reversed_measurements = []
-
-    for ind in range(len(images)):
-        reversed_image, reversed_measurement = flip_image_and_measurement(images[ind], measurements[ind])
-        reversed_images.append(reversed_image)
-        reversed_measurements.append(reversed_measurement)
-
-    images.extend(reversed_images)
-    measurements.extend(reversed_measurements)
-
-    # converting to numpy array since that's the format Keras requires.
-    return (np.array(images), np.array(measurements))
+    # in place shuffle which returns None.
+    shuffle(context)
+    return context
 
 def flip_image_and_measurement(image, measurement):
     reversed_image = cv2.flip(image, 1)
@@ -77,6 +29,46 @@ def process_image(data_path, image_path):
 
     # add in flipping if necessary
     return image
+
+def generator(samples, batch_size = 128, non_center_image_angle_correction = 0.2):
+    num_samples = len(samples)
+    while True:
+        shuffle(samples)
+        for offset in range(0, num_samples, batch_size):
+            batch_samples = samples[offset:offset + batch_size]
+
+            images = []
+            measurements = []
+
+            for line in batch_samples:
+                (center, left, right, steering_angle, throttle, brake, speed) = line.split(",")
+                center_image = process_image(data_path, center.split("/")[-1])
+                images.append(center_image)
+                measurements.append(float(steering_angle))
+                
+                left_image = process_image(data_path, left.split("/")[-1])
+                images.append(left_image)
+                measurements.append(float(steering_angle) + non_center_image_angle_correction)
+
+                right_image = process_image(data_path, right.split("/")[-1])
+                images.append(right_image)
+                measurements.append(float(steering_angle) - non_center_image_angle_correction)
+
+            # Flipping the images
+            reversed_images = []
+            reversed_measurements = []
+
+            for ind in range(len(images)):
+                reversed_image, reversed_measurement = flip_image_and_measurement(images[ind], measurements[ind])
+                reversed_images.append(reversed_image)
+                reversed_measurements.append(reversed_measurement)
+
+            images.extend(reversed_images)
+            measurements.extend(reversed_measurements)
+
+            X = np.array(images)
+            y = np.array(measurements)
+            yield sklearn.utils.shuffle(X, y)
 
 from keras.models import Sequential
 from keras.layers import Flatten, Dense, Lambda, Convolution2D, Cropping2D
@@ -111,10 +103,18 @@ def construct_nVidia_network():
     return model
 
 
-X_train, y_train = preprocess_images_and_measurements("./data/")
+data_path = "./data/"
+samples = load_driving_logs(data_path)
+print(len(samples))
+train_sample, validation_sample = train_test_split(samples, test_size = 0.2)
+
+train_generator = generator(train_sample, batch_size=64, non_center_image_angle_correction=0.2)
+validation_generator = generator(validation_sample, batch_size=64, non_center_image_angle_correction=0.2)
+
 model = construct_nVidia_network()
 model.compile(loss = 'mse', optimizer = 'adam')
-model.fit(X_train, y_train, validation_split = 0.2, shuffle = True, nb_epoch = 7)
+model.fit_generator(train_generator, samples_per_epoch = len(train_sample), 
+    validation_data = validation_generator, nb_val_samples = len(validation_sample), nb_epoch = 3)
 
 model.save("model.h5")
 # print("Train the network....")
