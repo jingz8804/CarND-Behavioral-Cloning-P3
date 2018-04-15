@@ -17,8 +17,11 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
 
     This function returns a tuple of (images, measurements of the steering angle). 
 
-    In the first trial, I'll only use the center image since we have data collected from the recovery lap. 
-    Also no flipping of the image for now since I have collected images from reversed driving.
+    The left camera should add some positive correction while the right camera should subtract the correction. 
+    Think it this way that if the center camera sees what the left camera sees, it should turn right a bit to get back to the center (positive correction).
+    On the other hand, if the center camera sees what the right camera sees, it should turn left a bit to get back to the center (negative correction).
+
+    Also Flipping gives us more data with driving in the reversed direction.
     """
     context = []
     with open(data_path + "/driving_log.csv") as f:
@@ -39,16 +42,33 @@ def preprocess_images_and_measurements(data_path, non_center_image_angle_correct
         images.append(center_image)
         measurements.append(float(steering_angle))
         
-        # left_image = process_image(data_path, left.split("/")[-1])
-        # images.append(left_image)
-        # measurements.append(float(steering_angle) + non_center_image_angle_correction)
+        left_image = process_image(data_path, left.split("/")[-1])
+        images.append(left_image)
+        measurements.append(float(steering_angle) + non_center_image_angle_correction)
 
-        # right_image = process_image(data_path, right.split("/")[-1])
-        # images.append(right_image)
-        # measurements.append(float(steering_angle) - non_center_image_angle_correction)
+        right_image = process_image(data_path, right.split("/")[-1])
+        images.append(right_image)
+        measurements.append(float(steering_angle) - non_center_image_angle_correction)
+
+    # Flipping the images
+    reversed_images = []
+    reversed_measurements = []
+
+    for ind in range(len(images)):
+        reversed_image, reversed_measurement = flip_image_and_measurement(images[ind], measurements[ind])
+        reversed_images.append(reversed_image)
+        reversed_measurements.append(reversed_measurement)
+
+    images.extend(reversed_images)
+    measurements.extend(reversed_measurements)
 
     # converting to numpy array since that's the format Keras requires.
     return (np.array(images), np.array(measurements))
+
+def flip_image_and_measurement(image, measurement):
+    reversed_image = cv2.flip(image, 1)
+    reversed_measurement = -1 * measurement
+    return reversed_image, reversed_measurement
 
 def process_image(data_path, image_path):
     # The following code read in the image as BGR! Convert it to RGB since the drive.py takes in RGB.
